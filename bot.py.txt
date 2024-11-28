@@ -1,0 +1,92 @@
+import telebot
+
+TOKEN = '7483145564:AAFi9GtCFOadpKSBRkmJ-dLR6cvqOvnYY9w'  # توکن ربات شما
+bot = telebot.TeleBot(TOKEN)
+
+# ذخیره موقت اطلاعات کاربران
+user_data = {}
+
+# مرحله اول: دریافت قد
+@bot.message_handler(commands=['start'])
+def ask_height(message):
+    chat_id = message.chat.id
+    user_data[chat_id] = {'step': 'height'}  # ذخیره مرحله کاربر
+    bot.send_message(chat_id, "سلام! لطفاً قد خود را به سانتی‌متر وارد کنید:")
+
+# دریافت قد و رفتن به مرحله وزن
+@bot.message_handler(func=lambda message: user_data.get(message.chat.id, {}).get('step') == 'height')
+def ask_weight(message):
+    chat_id = message.chat.id
+    try:
+        height = int(message.text)
+        user_data[chat_id]['height'] = height
+        user_data[chat_id]['step'] = 'weight'
+        bot.send_message(chat_id, "لطفاً وزن خود را به کیلوگرم وارد کنید:")
+    except ValueError:
+        bot.send_message(chat_id, "لطفاً عدد معتبر وارد کنید!")
+
+# دریافت وزن و رفتن به مرحله سن
+@bot.message_handler(func=lambda message: user_data.get(message.chat.id, {}).get('step') == 'weight')
+def ask_age(message):
+    chat_id = message.chat.id
+    try:
+        weight = int(message.text)
+        user_data[chat_id]['weight'] = weight
+        user_data[chat_id]['step'] = 'age'
+        bot.send_message(chat_id, "لطفاً سن خود را وارد کنید:")
+    except ValueError:
+        bot.send_message(chat_id, "لطفاً عدد معتبر وارد کنید!")
+
+# دریافت سن و رفتن به مرحله عکس
+@bot.message_handler(func=lambda message: user_data.get(message.chat.id, {}).get('step') == 'age')
+def ask_photo(message):
+    chat_id = message.chat.id
+    try:
+        age = int(message.text)
+        user_data[chat_id]['age'] = age
+        user_data[chat_id]['step'] = 'photo'
+        bot.send_message(chat_id, "لطفاً یک عکس نیم‌رخ از بدن خود ارسال کنید:")
+    except ValueError:
+        bot.send_message(chat_id, "لطفاً عدد معتبر وارد کنید!")
+
+# دریافت عکس و رفتن به مرحله بیماری
+@bot.message_handler(content_types=['photo'], func=lambda message: user_data.get(message.chat.id, {}).get('step') == 'photo')
+def ask_disease(message):
+    chat_id = message.chat.id
+    user_data[chat_id]['photo'] = message.photo[-1].file_id  # ذخیره شناسه عکس
+    user_data[chat_id]['step'] = 'disease'
+    bot.send_message(chat_id, "آیا بیماری خاصی دارید؟ لطفاً توضیح دهید یا اگر ندارید بنویسید 'ندارم'.")
+
+# دریافت اطلاعات بیماری و رفتن به مرحله غذاهای مورد علاقه
+@bot.message_handler(func=lambda message: user_data.get(message.chat.id, {}).get('step') == 'disease')
+def ask_favorite_food(message):
+    chat_id = message.chat.id
+    user_data[chat_id]['disease'] = message.text
+    user_data[chat_id]['step'] = 'favorite_food'
+    bot.send_message(chat_id, "لطفاً چند مورد از غذاهای مورد علاقه خود را بنویسید:")
+
+# دریافت غذاهای مورد علاقه و نمایش اطلاعات جمع‌بندی شده
+@bot.message_handler(func=lambda message: user_data.get(message.chat.id, {}).get('step') == 'favorite_food')
+def summary(message):
+    chat_id = message.chat.id
+    user_data[chat_id]['favorite_food'] = message.text
+
+    # جمع‌بندی اطلاعات
+    summary_text = f"""
+    اطلاعات شما:
+    📏 قد: {user_data[chat_id]['height']} سانتی‌متر
+    ⚖️ وزن: {user_data[chat_id]['weight']} کیلوگرم
+    🧓 سن: {user_data[chat_id]['age']} سال
+    🏥 بیماری خاص: {user_data[chat_id]['disease']}
+    🍽️ غذاهای مورد علاقه: {user_data[chat_id]['favorite_food']}
+    """
+    bot.send_message(chat_id, summary_text)
+
+    # ارسال عکس ذخیره‌شده
+    bot.send_photo(chat_id, user_data[chat_id]['photo'])
+
+    # پاک کردن اطلاعات کاربر از حافظه
+    user_data.pop(chat_id, None)
+
+# اجرای ربات
+bot.polling()
